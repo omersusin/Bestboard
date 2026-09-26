@@ -36,6 +36,7 @@ Bestboard is designed for people who:
 - **Right Hand** — 5-column compact layout with controls on the right
 - **Left Hand** — 5-column compact layout with controls on the left
 - **Thumb** — 5-column layout optimized for thumb typing
+- **Split mode** — center gap for two-thumb typing (full width)
 - **Two symbol layers** — common symbols plus extended characters
 - **Optional number row** — toggle in settings
 
@@ -47,6 +48,7 @@ Bestboard is designed for people who:
 - **Hold backspace** for continuous delete
 - **Emoji-aware backspace** — prevents breaking multi-byte characters
 - **Glide typing** (opt-in) — swipe across letters; doubled letters by lingering
+- **Frosted glass** (opt-in) — blurred keyboard background on Android 12+, solid otherwise
 
 ### Text Editing Panel
 
