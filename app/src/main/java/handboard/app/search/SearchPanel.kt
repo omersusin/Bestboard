@@ -106,10 +106,10 @@ fun SearchPanel(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(ActionKeyBackground).clickable { openSearch(suggestion) }.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            SearchIcon(modifier = Modifier.size(16.dp), color = KeyTextDim)
+                            SearchIcon(tint = KeyTextDim, size = 16.dp)
                             Spacer(Modifier.width(8.dp))
                             Text(text = suggestion, color = KeyText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), fontWeight = if (suggestion.startsWith(query, true)) FontWeight.Normal else FontWeight.Bold)
-                            TravelExploreIcon(modifier = Modifier.size(16.dp), color = ShiftActiveBackground)
+                            TravelExploreIcon(tint = ShiftActiveBackground, size = 16.dp)
                         }
                     }
                 }

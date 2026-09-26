@@ -45,7 +45,8 @@ fun CurrencyPanel(
     val isLoading by repo.isLoading.collectAsState()
     val error by repo.error.collectAsState()
     val scope = rememberCoroutineScope()
-    val currencies = repo.currencies
+    // ponytail: repo exposes availableCurrencies (was repo.currencies — unresolvable).
+    val currencies = repo.availableCurrencies
 
     var from by remember { mutableStateOf("USD") }
     var to by remember { mutableStateOf("TRY") }

@@ -167,6 +167,9 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                             onTextInput = { text ->
                                 val ic = currentInputConnection
                                 if (ic != null) {
+                                    // ponytail: hoisted for space-branch + post-commit use (was scoped inside if).
+                                    var preWord = ""
+                                    var corrected = false
                                     if (text == " ") {
                                         val now = System.currentTimeMillis()
                                         if (now - lastSpaceTime < 400 && !isPasswordField) {
@@ -175,8 +178,8 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                         lastSpaceTime = now
                                         // ponytail: autocorrect on space + learn typed word for bigrams. Skip passwords/numbers.
                                         // getCurrentWord() AFTER space is empty, so capture before committing.
-                                        val preWord = getCurrentWord()
-                                        var corrected = false
+                                        preWord = getCurrentWord()
+                                        corrected = false
                                         if (acorr && !isPasswordField && !isNumberField) {
                                             predictor.autocorrect(preWord)?.let { fix ->
                                                 ic.deleteSurroundingText(preWord.length, 0)

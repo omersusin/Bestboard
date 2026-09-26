@@ -58,7 +58,7 @@ fun InKeyboardBrowser(
                 webView?.destroy()
                 onClose()
                 onDismissKeyboard() 
-            }.padding(8.dp)) { CloseIcon(modifier = Modifier.size(16.dp), color = KeyText) }
+            }.padding(8.dp)) { CloseIcon(tint = KeyText, size = 16.dp) }
             
             Spacer(Modifier.width(4.dp))
             Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if(canGoBack) ActionKeyBackground else KeyboardBackground).clickable(enabled = canGoBack) { webView?.goBack() }.padding(8.dp)) { BackArrowIcon(tint = if(canGoBack) KeyText else KeyTextDim, size = 16.dp) }
@@ -67,7 +67,7 @@ fun InKeyboardBrowser(
             Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if(canGoForward) ActionKeyBackground else KeyboardBackground).clickable(enabled = canGoForward) { webView?.goForward() }.padding(8.dp)) { ForwardArrowIcon(tint = if(canGoForward) KeyText else KeyTextDim, size = 16.dp) }
             
             Spacer(Modifier.width(4.dp))
-            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(ActionKeyBackground).clickable { webView?.reload() }.padding(8.dp)) { RefreshIcon(modifier = Modifier.size(14.dp), color = KeyText) }
+            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(ActionKeyBackground).clickable { webView?.reload() }.padding(8.dp)) { RefreshIcon(tint = KeyText, size = 14.dp) }
 
             Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
                 Text(pageTitle, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KeyText)
@@ -86,7 +86,7 @@ fun InKeyboardBrowser(
                     context.startActivity(Intent.createChooser(intent, "Paylaş").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 } catch (_: Exception) {}
                 onDismissKeyboard()
-            }.padding(8.dp)) { ShareIcon(modifier = Modifier.size(14.dp), color = KeyText) }
+            }.padding(8.dp)) { ShareIcon(tint = KeyText, size = 14.dp) }
 
             Spacer(Modifier.width(4.dp))
 
