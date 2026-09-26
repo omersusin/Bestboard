@@ -24,8 +24,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import handboard.app.prediction.glide.KeyRect
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -60,6 +64,9 @@ fun KeyView(
     soundEnabled: Boolean = false,
     onCursorMove: ((Int) -> Unit)? = null,
     onAltChar: ((String) -> Unit)? = null,
+    // ponytail: glide support — keys report geometry and yield clicks mid-swipe.
+    isGliding: () -> Boolean = { false },
+    onKeyPlaced: ((Char, KeyRect) -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -70,6 +77,10 @@ fun KeyView(
     val currentSound by rememberUpdatedState(soundEnabled)
     val currentOnAltChar by rememberUpdatedState(onAltChar)
     val currentOnCursorMove by rememberUpdatedState(onCursorMove)
+    val currentIsGliding by rememberUpdatedState(isGliding)
+    val currentOnKeyPlaced by rememberUpdatedState(onKeyPlaced)
+    val density = LocalDensity.current
+    val touchSlopPx = remember(density) { with(density) { 24.dp.toPx() } }
 
     var showAltPopup by remember { mutableStateOf(false) }
 
@@ -107,6 +118,17 @@ fun KeyView(
         .clip(RoundedCornerShape(8.dp))
         .background(bgColor)
         .semantics { contentDescription = description; role = Role.Button }
+        .then(
+            if (keyData.action is KeyAction.Text && keyData.label.length == 1) {
+                Modifier.onGloballyPositioned { coords ->
+                    val b = coords.boundsInWindow()
+                    currentOnKeyPlaced?.invoke(
+                        keyData.label[0].lowercaseChar(),
+                        KeyRect(b.center.x, b.center.y, b.width / 2f)
+                    )
+                }
+            } else Modifier
+        )
 
     // === SPACE BAR: tap = space, long-press + drag = cursor ===
     if (keyData.action is KeyAction.Space) {
@@ -188,8 +210,9 @@ fun KeyView(
             modifier = baseModifier
                 .pointerInput(keyData.label) {
                     awaitEachGesture {
-                        awaitFirstDown(); playFeedback()
-                        var longJob: Job? = null; var wasLong = false
+                        val down = awaitFirstDown()
+                        playFeedback()
+                        var longJob: Job? = null; var wasLong = false; var moved = false
                         if (hasAlts) {
                             longJob = scope.launch {
                                 delay(500L); wasLong = true
@@ -197,8 +220,24 @@ fun KeyView(
                                 showAltPopup = true
                             }
                         }
-                        waitForUpOrCancellation(); longJob?.cancel()
-                        if (!wasLong) currentOnClick()
+                        // ponytail: track drift — swiped-through keys must not click (glide owns it).
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            when (event.type) {
+                                PointerEventType.Release -> break
+                                PointerEventType.Cancel -> { moved = true; break }
+                                PointerEventType.Move -> {
+                                    val change = event.changes.firstOrNull() ?: continue
+                                    if ((change.position - down.position).getDistance() > touchSlopPx) {
+                                        moved = true
+                                        longJob?.cancel()
+                                    }
+                                }
+                                else -> {}
+                            }
+                        }
+                        longJob?.cancel()
+                        if (!wasLong && !moved && !currentIsGliding()) currentOnClick()
                     }
                 }
                 .defaultMinSize(minHeight = minH),

@@ -27,6 +27,8 @@ import handboard.app.layout.LayoutSwitcher
 import handboard.app.layout.ui.KeyboardView
 import handboard.app.layout.ui.KeyboardWrapper
 import handboard.app.prediction.*
+import handboard.app.prediction.glide.GlideLib
+import handboard.app.prediction.glide.GlideUiState
 import handboard.app.settings.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,6 +56,8 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         prefs = PreferencesManager(this)
+        // ponytail: bundled gesture decoder (no-op when ABI missing).
+        GlideLib.loadBundled()
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -159,11 +163,16 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
 
                 val ls = remember { LayoutSwitcher(ln) }
                 LaunchedEffect(ln) { ls.setLayout(ln) }
+                // ponytail: glide session — geometry re-measured per layout.
+                val glideUi = remember { GlideUiState() }
+                LaunchedEffect(ln) { glideUi.geometry.clear() }
+                val glidePref by prefs.glideEnabled.collectAsState(initial = false)
 
                 val sugs = remember { mutableStateListOf<String>() }
-                // ponytail: private/incognito fields get no predictions, no learning, no net panels.
                 val noLearn = isPasswordField || isNumberField || isPrivateField
                 val showPred = pe && !noLearn
+                // ponytail: glide needs dict + consent; never in private fields.
+                val glideOk = glidePref && !noLearn
 
                 fun updateSuggestions() {
                     sugs.clear(); if (!showPred) return
@@ -179,6 +188,18 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                             kaomojiEnabled = kaomojiEnabled, phrasesEnabled = phrasesEnabled, translateEnabled = translateEnabled && !noLearn,
                             textEditingEnabled = textEditingEnabled, emojiEnabled = emojiEnabled,
                             clipboardHistory = if (clipboardEnabled) clipboard else null,
+                            // ponytail: glide decode + commit (fresh word — no space-autocorrect rerun).
+                            glideEnabled = glideOk,
+                            glideUi = glideUi,
+                            onGlideDecode = { trail -> predictor.decodeGlide(trail, glideUi.geometry.snapshot(), sc) },
+                            onGlideCandidates = { sugs.clear(); sugs.addAll(it) },
+                            onGlideCommit = { word ->
+                                if (!noLearn) {
+                                    currentInputConnection?.commitText("$word ", 1)
+                                    predictor.onWordCommitted(word)
+                                }
+                                updateSuggestions()
+                            },
                             suggestionBar = if (showPred) { { SuggestionBar(suggestions = sugs, onSuggestionClick = { 
                                 val cur = getCurrentWord()
                                 if (cur.isNotEmpty()) currentInputConnection?.deleteSurroundingText(cur.length, 0)

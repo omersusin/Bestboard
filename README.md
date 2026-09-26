@@ -46,6 +46,7 @@ Bestboard is designed for people who:
 - **Auto-capitalize** after sentences
 - **Hold backspace** for continuous delete
 - **Emoji-aware backspace** — prevents breaking multi-byte characters
+- **Glide typing** (opt-in) — swipe across letters; doubled letters by lingering
 
 ### Text Editing Panel
 

@@ -2,6 +2,9 @@ package handboard.app.prediction
 
 import android.content.Context
 import android.util.Log
+import handboard.app.prediction.glide.GlidePoint
+import handboard.app.prediction.glide.KeyRect
+import handboard.app.prediction.glide.TrieGlideDecoder
 
 class WordPredictor {
     private val trie = Trie()
@@ -109,6 +112,12 @@ class WordPredictor {
         }
         val word = text.substring(startIndex, endIndex)
         return if (word.length > 30) "" else word.lowercase()
+    }
+
+    /** Swipe-to-word decode over the loaded dictionaries. Empty when unloaded. */
+    fun decodeGlide(trail: List<GlidePoint>, keys: Map<Char, KeyRect>, limit: Int = 3): List<String> {
+        if (!isLoaded || trie.size() == 0) return emptyList()
+        return TrieGlideDecoder(trie::search, trie::getFrequency, trie::wordsWithPrefix).decode(trail, keys, limit)
     }
 
     /** Test seam: seed an in-memory dictionary without Android assets. */

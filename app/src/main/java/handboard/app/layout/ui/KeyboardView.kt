@@ -1,6 +1,8 @@
 package handboard.app.layout.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +22,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.dp
+import handboard.app.prediction.glide.GlidePoint
+import handboard.app.prediction.glide.GlideUiState
 import handboard.app.clipboard.ClipboardHistory
 import handboard.app.clipboard.ClipboardItem
 import handboard.app.clipboard.ClipboardView
@@ -53,6 +64,12 @@ fun KeyboardView(
     textEditingEnabled: Boolean = true, emojiEnabled: Boolean = true,
     clipboardHistory: ClipboardHistory? = null,
     suggestionBar: (@Composable () -> Unit)? = null,
+    // ponytail: glide typing — trail capture + decode, all no-ops when disabled/null.
+    glideEnabled: Boolean = false,
+    glideUi: GlideUiState? = null,
+    onGlideDecode: (List<GlidePoint>) -> List<String> = { emptyList() },
+    onGlideCandidates: (List<String>) -> Unit = {},
+    onGlideCommit: (String) -> Unit = {},
     onTextInput: (String) -> Unit, onBackspace: () -> Unit, onEnter: () -> Unit,
     onEmojiInput: (String) -> Unit = onTextInput,
     onCursorMove: (Int) -> Unit = {}, onCursorHome: () -> Unit = {}, onCursorEnd: () -> Unit = {},
@@ -120,11 +137,67 @@ fun KeyboardView(
 
         // Klavye Tuşlarını Sadece BROWSER KAPALIYKEN ve GEÇERLİ PANEL AÇIKKEN Çiz
         if (!isBrowserOpen && (currentPanel == KeyboardPanel.KEYBOARD || isInputPanel)) {
+            // ponytail: glide session — window offset for trail coords, decode throttle, commit wrapper.
+            var gridWindow by remember { mutableStateOf(Offset.Zero) }
+            val commitGlide: (String) -> Unit = { word -> state.onTextCommitted(); onGlideCommit(word) }
+            val glideActiveNow = glideEnabled && glideUi != null &&
+                currentPanel == KeyboardPanel.KEYBOARD && state.currentLayer == KeyboardLayer.LETTERS
             key(layoutSwitcher.currentLayoutName, state.currentLayer) {
-                Column(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 4.dp).padding(bottom = 6.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                        .padding(horizontal = 4.dp).padding(bottom = 6.dp)
+                        .onGloballyPositioned { gridWindow = it.positionInWindow() }
+                        .pointerInput(glideActiveNow) {
+                            if (!glideActiveNow || glideUi == null) return@pointerInput
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val t0 = System.currentTimeMillis()
+                                val pts = mutableListOf(
+                                    GlidePoint(down.position.x + gridWindow.x, down.position.y + gridWindow.y, 0L)
+                                )
+                                var gliding = false
+                                var lastDecode = 0L
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (event.type == PointerEventType.Release || event.type == PointerEventType.Cancel) break
+                                    if (event.type != PointerEventType.Move) continue
+                                    val change = event.changes.firstOrNull() ?: continue
+                                    val now = System.currentTimeMillis()
+                                    pts.add(GlidePoint(change.position.x + gridWindow.x, change.position.y + gridWindow.y, now - t0))
+                                    if (!gliding && (change.position - down.position).getDistance() > 48f) {
+                                        gliding = true
+                                        glideUi.active = true
+                                    }
+                                    if (gliding) {
+                                        glideUi.trail.clear()
+                                        glideUi.trail.addAll(pts)
+                                        // ponytail: decode at most ~15/s (fuzzy over trie per move is not free).
+                                        if (now - lastDecode > 64L) {
+                                            lastDecode = now
+                                            onGlideCandidates(onGlideDecode(pts.toList()))
+                                        }
+                                    }
+                                }
+                                glideUi.active = false
+                                glideUi.trail.clear()
+                                if (gliding) {
+                                    val final = onGlideDecode(pts)
+                                    if (final.isNotEmpty()) commitGlide(final.first())
+                                    else onGlideCandidates(emptyList())
+                                }
+                            }
+                        }
+                        .drawBehind {
+                            val ui = glideUi
+                            if (ui != null && ui.trail.size > 1) {
+                                val local = ui.trail.map { Offset(it.x - gridWindow.x, it.y - gridWindow.y) }
+                                drawPoints(local, PointMode.Polygon, handboard.app.core.theme.ShiftActiveBackground, strokeWidth = 12f)
+                            }
+                        }
+                ) {
                     if (numberRowEnabled && state.currentLayer == KeyboardLayer.LETTERS) {
                         Row(modifier = Modifier.fillMaxWidth().background(NumberRowBackground).padding(vertical = 1.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            numberRow.forEach { kd -> KeyView(modifier = Modifier.weight(1f), keyData = kd, isShifted = false, isCapsLock = false, currentLayer = state.currentLayer, heightScale = heightScale * 0.8f, hapticEnabled = hapticEnabled, soundEnabled = soundEnabled, onClick = { if (isInputPanel) panelQuery += kd.label else onTextInput(kd.label) }) }
+                            numberRow.forEach { kd -> KeyView(modifier = Modifier.weight(1f), keyData = kd, isShifted = false, isCapsLock = false, currentLayer = state.currentLayer, heightScale = heightScale * 0.8f, hapticEnabled = hapticEnabled, soundEnabled = soundEnabled, isGliding = { glideUi?.active == true }, onClick = { if (isInputPanel) panelQuery += kd.label else onTextInput(kd.label) }) }
                         }
                     }
 
@@ -135,6 +208,9 @@ fun KeyboardView(
                                     modifier = Modifier.weight(kd.widthWeight), keyData = kd, isShifted = state.shouldUpperCase, isCapsLock = state.isCapsLock, currentLayer = state.currentLayer, heightScale = heightScale, hapticEnabled = hapticEnabled, soundEnabled = soundEnabled,
                                     onCursorMove = if (spacebarCursor && kd.action is KeyAction.Space && currentPanel == KeyboardPanel.KEYBOARD) { { dir -> onCursorMove(dir) } } else null,
                                     onAltChar = { if (isInputPanel) panelQuery += it else onTextInput(it) },
+                                    // ponytail: glide arbitration + geometry (letters only, window coords).
+                                    isGliding = { glideUi?.active == true },
+                                    onKeyPlaced = if (glideEnabled) { { ch, rect -> if (ch.isLetter()) glideUi?.geometry?.set(ch, rect) } } else null,
                                     onClick = {
                                         if (isInputPanel) {
                                             when (val act = kd.action) {

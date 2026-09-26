@@ -46,6 +46,7 @@ class PreferencesManager(private val context: Context) {
         val KEY_HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
         val KEY_LARGE_KEYS = booleanPreferencesKey("large_keys")
         val KEY_MULTILINGUAL = booleanPreferencesKey("multilingual_enabled")
+        val KEY_GLIDE = booleanPreferencesKey("glide_enabled")
         val KEY_ACTIVE_DICTS = stringSetPreferencesKey("active_dicts")
         val KEY_DICTIONARY = stringPreferencesKey("dictionary_id")
     }
@@ -80,7 +81,8 @@ class PreferencesManager(private val context: Context) {
     val highContrast: Flow<Boolean> = context.dataStore.data.map { it[KEY_HIGH_CONTRAST] ?: false }
     val largeKeys: Flow<Boolean> = context.dataStore.data.map { it[KEY_LARGE_KEYS] ?: false }
     val multilingualEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MULTILINGUAL] ?: false }
-    val activeDicts: Flow<Set<String>> = context.dataStore.data.map { it[KEY_ACTIVE_DICTS] ?: setOf("en_us") }
+    // ponytail: glide typing is opt-in (needs trail capture + decoder).
+    val glideEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_GLIDE] ?: false }    val activeDicts: Flow<Set<String>> = context.dataStore.data.map { it[KEY_ACTIVE_DICTS] ?: setOf("en_us") }
     val dictionaryId: Flow<String> = context.dataStore.data.map { it[KEY_DICTIONARY] ?: "en_us" }
 
     suspend fun setKeyboardHeight(v: Float) { context.dataStore.edit { it[KEY_HEIGHT] = v } }
@@ -112,6 +114,7 @@ class PreferencesManager(private val context: Context) {
     suspend fun setHighContrast(v: Boolean) { context.dataStore.edit { it[KEY_HIGH_CONTRAST] = v } }
     suspend fun setLargeKeys(v: Boolean) { context.dataStore.edit { it[KEY_LARGE_KEYS] = v } }
     suspend fun setMultilingualEnabled(v: Boolean) { context.dataStore.edit { it[KEY_MULTILINGUAL] = v } }
+    suspend fun setGlideEnabled(v: Boolean) { context.dataStore.edit { it[KEY_GLIDE] = v } }
     suspend fun setActiveDicts(v: Set<String>) { context.dataStore.edit { it[KEY_ACTIVE_DICTS] = v } }
     suspend fun setDictionaryId(v: String) { context.dataStore.edit { it[KEY_DICTIONARY] = v } }
 }
