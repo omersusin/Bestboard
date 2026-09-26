@@ -134,10 +134,13 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
             val themePref by prefs.themePreference.collectAsState(initial = "system")
             val isSysDark = isSystemInDarkTheme()
             val useDark = when (themePref) { "light" -> false; "dark", "amoled" -> true; else -> isSysDark }
+            // ponytail: frosted glass state up front — theme + window blur both key off it.
+            val blurPref by prefs.frostedGlassEnabled.collectAsState(initial = true)
+            val blurAvailable = remember { FrostedGlass.isAvailable(this@HandBoardService) }
+            val blurActive = blurPref && blurAvailable
 
-            HandBoardTheme(darkTheme = useDark) {
-                applyKeyboardTheme(themePref, isSysDark, MaterialTheme.colorScheme.primary)
-                
+            HandBoardTheme(darkTheme = useDark, translucent = blurActive) {
+                applyKeyboardTheme(themePref, isSysDark, MaterialTheme.colorScheme.primary, blurActive)
                 val hs by prefs.keyboardHeight.collectAsState(initial = 1.0f)
                 val wp by prefs.keyboardWidth.collectAsState(initial = 100)
                 val al by prefs.keyboardAlignment.collectAsState(initial = 1)
@@ -165,6 +168,11 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val multiEnabled by prefs.multilingualEnabled.collectAsState(initial = false)
                 val activeDicts by prefs.activeDicts.collectAsState(initial = setOf("en_us"))
                 val dictId by prefs.dictionaryId.collectAsState(initial = "en_us")
+                androidx.compose.runtime.DisposableEffect(blurActive) {
+                    val w = this@HandBoardService.window
+                    if (blurActive) FrostedGlass.applyToWindow(w) else FrostedGlass.clear(w)
+                    onDispose { FrostedGlass.clear(w) }
+                }
 
                 LaunchedEffect(clipboardEnabled) {
                     // ponytail: destroy first (was create-without-destroy on rapid toggle — leaked listener).

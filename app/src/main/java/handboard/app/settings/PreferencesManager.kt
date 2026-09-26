@@ -48,6 +48,7 @@ class PreferencesManager(private val context: Context) {
         val KEY_MULTILINGUAL = booleanPreferencesKey("multilingual_enabled")
         val KEY_GLIDE = booleanPreferencesKey("glide_enabled")
         val KEY_SPLIT = booleanPreferencesKey("split_enabled")
+        val KEY_BLUR = booleanPreferencesKey("frosted_glass_enabled")
         val KEY_ACTIVE_DICTS = stringSetPreferencesKey("active_dicts")
         val KEY_DICTIONARY = stringPreferencesKey("dictionary_id")
     }
@@ -86,6 +87,8 @@ class PreferencesManager(private val context: Context) {
     val glideEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_GLIDE] ?: false }
     // ponytail: split is a render mode, not a layout — one boolean for all layouts.
     val splitEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_SPLIT] ?: false }
+    // ponytail: signature look — on where the platform offers cross-window blur, solid elsewhere.
+    val frostedGlassEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_BLUR] ?: true }
     val activeDicts: Flow<Set<String>> = context.dataStore.data.map { it[KEY_ACTIVE_DICTS] ?: setOf("en_us") }
     val dictionaryId: Flow<String> = context.dataStore.data.map { it[KEY_DICTIONARY] ?: "en_us" }
 
@@ -120,6 +123,7 @@ class PreferencesManager(private val context: Context) {
     suspend fun setMultilingualEnabled(v: Boolean) { context.dataStore.edit { it[KEY_MULTILINGUAL] = v } }
     suspend fun setGlideEnabled(v: Boolean) { context.dataStore.edit { it[KEY_GLIDE] = v } }
     suspend fun setSplitEnabled(v: Boolean) { context.dataStore.edit { it[KEY_SPLIT] = v } }
+    suspend fun setFrostedGlassEnabled(v: Boolean) { context.dataStore.edit { it[KEY_BLUR] = v } }
     suspend fun setActiveDicts(v: Set<String>) { context.dataStore.edit { it[KEY_ACTIVE_DICTS] = v } }
     suspend fun setDictionaryId(v: String) { context.dataStore.edit { it[KEY_DICTIONARY] = v } }
 }

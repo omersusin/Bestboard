@@ -39,6 +39,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun HandBoardTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    translucent: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -53,7 +54,7 @@ fun HandBoardTheme(
     // Apply the keyboard theme logic here to prevent "Unresolved reference"
     SideEffect {
         val themePref = if (darkTheme) "dark" else "light"
-        applyKeyboardTheme(themePref, darkTheme, colorScheme.primary)
+        applyKeyboardTheme(themePref, darkTheme, colorScheme.primary, translucent)
     }
 
     MaterialTheme(

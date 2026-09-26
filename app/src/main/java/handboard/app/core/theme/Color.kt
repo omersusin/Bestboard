@@ -70,7 +70,7 @@ var KeyText = DarkKeyboardColors.keyText; private set
 var KeyTextDim = DarkKeyboardColors.keyTextDim; private set
 var NumberRowBackground = DarkKeyboardColors.numberRow; private set
 
-fun applyKeyboardTheme(themePref: String, isSystemDark: Boolean, dynamicPrimary: Color?) {
+fun applyKeyboardTheme(themePref: String, isSystemDark: Boolean, dynamicPrimary: Color?, translucent: Boolean = false) {
     val base = when (themePref) {
         "amoled" -> AmoledKeyboardColors
         "light" -> LightKeyboardColors
@@ -78,11 +78,12 @@ fun applyKeyboardTheme(themePref: String, isSystemDark: Boolean, dynamicPrimary:
         else -> if (isSystemDark) DarkKeyboardColors else LightKeyboardColors
     }
 
-    KeyboardBackground = base.background
-    KeyBackground = base.keyBackground
-    ActionKeyBackground = base.actionKeyBackground
+    // ponytail: frosted glass — translucent surface over window blur, solid otherwise.
+    KeyboardBackground = if (translucent) base.background.copy(alpha = 0.62f) else base.background
+    KeyBackground = if (translucent) base.keyBackground.copy(alpha = 0.78f) else base.keyBackground
+    ActionKeyBackground = if (translucent) base.actionKeyBackground.copy(alpha = 0.78f) else base.actionKeyBackground
     ShiftActiveBackground = dynamicPrimary ?: base.shiftActive 
     KeyText = base.keyText
     KeyTextDim = base.keyTextDim
-    NumberRowBackground = base.numberRow
+    NumberRowBackground = if (translucent) base.numberRow.copy(alpha = 0.62f) else base.numberRow
 }
