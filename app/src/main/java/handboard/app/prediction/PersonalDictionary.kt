@@ -28,7 +28,7 @@ class PersonalDictionary(context: Context) {
     }
 
     fun learnWord(word: String) {
-        if (word.length < 2) return
+        if (word.length < 2 || word.length > 30) return
         val w = word.lowercase()
         val freq = (words[w] ?: 0) + 5
         words[w] = freq
@@ -36,7 +36,7 @@ class PersonalDictionary(context: Context) {
     }
 
     fun learnBigram(prev: String, current: String) {
-        if (prev.length < 2 || current.length < 2) return
+        if (prev.length < 2 || current.length < 2 || prev.length > 30 || current.length > 30) return
         val p = prev.lowercase()
         val c = current.lowercase()
         val count = (bigrams.getOrPut(p) { HashMap() }[c] ?: 0) + 1

@@ -7,28 +7,30 @@ class WordPredictor {
     private val trie = Trie()
     private val bigramMap = HashMap<String, HashMap<String, Int>>()
     private var lastWord = ""
-    private var isLoaded = false
+    @Volatile private var isLoaded = false
     private var personalDict: PersonalDictionary? = null
     private var dictManager: DictionaryManager? = null
 
     private var lastPrefix = ""
     private var lastResults = emptyList<String>()
 
+    @Synchronized
     fun loadDictionaries(context: Context, dictIds: Set<String>) {
         val newTrie = Trie()
-        bigramMap.clear()
+        // ponytail: build bigrams off-thread into a local map, swap under lock (was clear+fill shared map).
+        val newBigrams = HashMap<String, HashMap<String, Int>>()
         dictManager = DictionaryManager(context)
         dictIds.forEach { dictId ->
             val dict = dictManager?.getAvailable()?.find { it.id == dictId }
             if (dict != null) dictManager?.loadIntoTrie(dict, newTrie)
-            dictManager?.loadBigrams(dictId, bigramMap)
+            dictManager?.loadBigrams(dictId, newBigrams)
         }
         personalDict = PersonalDictionary(context)
         personalDict?.applyToTrie(newTrie)
-        personalDict?.applyBigrams(bigramMap)
+        personalDict?.applyBigrams(newBigrams)
         if (newTrie.size() == 0) loadFallback(newTrie)
-        trie.root.children.clear()
-        trie.root.children.putAll(newTrie.root.children)
+        trie.replaceWith(newTrie)
+        synchronized(bigramMap) { bigramMap.clear(); bigramMap.putAll(newBigrams) }
         isLoaded = true
         lastPrefix = ""
         lastResults = emptyList()
@@ -70,22 +72,30 @@ class WordPredictor {
     private fun predictNextWord(limit: Int, overrideLastWord: String? = null): List<String> {
         val word = overrideLastWord ?: lastWord
         if (word.isEmpty()) return emptyList()
-        return bigramMap[word.lowercase()]?.entries?.sortedByDescending { it.value }?.take(limit)?.map { it.key } ?: emptyList()
+        synchronized(bigramMap) {
+            return bigramMap[word.lowercase()]?.entries?.sortedByDescending { it.value }?.take(limit)?.map { it.key } ?: emptyList()
+        }
     }
 
     fun onWordCommitted(word: String) {
         val lower = word.lowercase().trim()
-        if (lower.length < 2) return
+        // ponytail: cap length/charset (was <2 only — one long paste could poison trie + fuzzy).
+        if (lower.length < 2 || lower.length > 30 || !lower.all { it.isLetter() || it == '\'' || it == '-' }) return
         personalDict?.learnWord(lower)
         trie.updateFrequency(lower, 5)
-        if (lastWord.isNotEmpty()) {
-            val count = bigramMap.getOrPut(lastWord) { HashMap() }[lower] ?: 0
-            bigramMap[lastWord]!![lower] = count + 1
-            personalDict?.learnBigram(lastWord, lower)
+        synchronized(bigramMap) {
+            if (lastWord.isNotEmpty()) {
+                val count = bigramMap.getOrPut(lastWord) { HashMap() }[lower] ?: 0
+                bigramMap[lastWord]!![lower] = count + 1
+                personalDict?.learnBigram(lastWord, lower)
+            }
         }
         lastWord = lower
         lastPrefix = ""
     }
+
+    /** Called when the input session ends so bigrams don't leak across editors. */
+    fun onInputSessionEnd() { lastWord = ""; lastPrefix = ""; lastResults = emptyList() }
 
     private fun extractCurrentWord(text: String?): String {
         if (text.isNullOrEmpty()) return ""

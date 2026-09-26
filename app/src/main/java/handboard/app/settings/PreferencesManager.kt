@@ -62,7 +62,8 @@ class PreferencesManager(private val context: Context) {
     val bottomPadding: Flow<Int> = context.dataStore.data.map { it[KEY_BOTTOM_PADDING] ?: 0 }
     
     // Panel Toggles
-    val clipboardEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_CLIPBOARD_ENABLED] ?: true }
+    // ponytail: clipboard history is opt-in — default off (was on in service/prefs, off in settings UI).
+    val clipboardEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_CLIPBOARD_ENABLED] ?: false }
     val searchEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_SEARCH_ENABLED] ?: true }
     val currencyEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_CURRENCY_ENABLED] ?: true }
     val kaomojiEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_KAOMOJI_ENABLED] ?: true }

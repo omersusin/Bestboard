@@ -106,4 +106,12 @@ class Trie {
     }
 
     fun size(): Int = wordCount
+
+    /** Atomic snapshot swap for dictionary reload (also resets the counter — was stale). */
+    @Synchronized
+    fun replaceWith(other: Trie) {
+        root.children.clear()
+        root.children.putAll(other.root.children)
+        wordCount = other.size()
+    }
 }

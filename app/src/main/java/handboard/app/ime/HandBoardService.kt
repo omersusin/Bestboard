@@ -39,8 +39,10 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
     private lateinit var prefs: PreferencesManager
     private val predictor = WordPredictor()
     private var clipboard: ClipboardHistory? = null
-    private var isPasswordField = false
-    private var isNumberField = false
+    // ponytail: state so predictions + network panels recompose on field switch (was plain var).
+    private var isPasswordField by mutableStateOf(false)
+    private var isNumberField by mutableStateOf(false)
+    private var isPrivateField by mutableStateOf(false)
     private var lastSpaceTime = 0L
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
@@ -62,12 +64,20 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
         val cls = t and InputType.TYPE_MASK_CLASS
         isPasswordField = v == InputType.TYPE_TEXT_VARIATION_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD || (cls == InputType.TYPE_CLASS_NUMBER && (t and InputType.TYPE_NUMBER_VARIATION_PASSWORD) != 0)
         isNumberField = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE
+        // ponytail: honor incognito / no-learning flags like a password (no learning, no suggestions, no net panels).
+        val noPersonalized = (info?.imeOptions?.and(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) ?: 0) != 0
+        val noSuggestFlag = (t and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0
+        isPrivateField = isPasswordField || noPersonalized || noSuggestFlag
         lastSpaceTime = 0L
     }
 
+    override fun onFinishInput() { super.onFinishInput(); lastSpaceTime = 0L; predictor.onInputSessionEnd() }
+
     override fun onFinishInputView(f: Boolean) { super.onFinishInputView(f); lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE) }
 
-    private fun getCurrentWord(): String = predictor.getCurrentWord(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "")
+    private fun getCurrentWord(): String = try {
+        predictor.getCurrentWord(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "")
+    } catch (_: Exception) { "" }
 
     private fun performBackspace() {
         val ic = currentInputConnection ?: return
@@ -76,8 +86,10 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
     }
 
     private fun sendKey(code: Int, meta: Int = 0) {
-        currentInputConnection?.sendKeyEvent(KeyEvent(0, 0, KeyEvent.ACTION_DOWN, code, 0, meta))
-        currentInputConnection?.sendKeyEvent(KeyEvent(0, 0, KeyEvent.ACTION_UP, code, 0, meta))
+        // ponytail: hoist ic so DOWN never fires without UP (was re-read per event).
+        val ic = currentInputConnection ?: return
+        ic.sendKeyEvent(KeyEvent(0, 0, KeyEvent.ACTION_DOWN, code, 0, meta))
+        ic.sendKeyEvent(KeyEvent(0, 0, KeyEvent.ACTION_UP, code, 0, meta))
     }
 
     private fun pasteImage(item: ClipboardItem) {
@@ -118,7 +130,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val sc2 by prefs.spacebarCursor.collectAsState(initial = true)
                 val lk by prefs.largeKeys.collectAsState(initial = false)
                 
-                val clipboardEnabled by prefs.clipboardEnabled.collectAsState(initial = true)
+                val clipboardEnabled by prefs.clipboardEnabled.collectAsState(initial = false)
                 val searchEnabled by prefs.searchEnabled.collectAsState(initial = true)
                 val currencyEnabled by prefs.currencyEnabled.collectAsState(initial = true)
                 val kaomojiEnabled by prefs.kaomojiEnabled.collectAsState(initial = true)
@@ -144,24 +156,29 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 LaunchedEffect(ln) { ls.setLayout(ln) }
 
                 val sugs = remember { mutableStateListOf<String>() }
-                val showPred = pe && !isPasswordField && !isNumberField
+                // ponytail: private/incognito fields get no predictions, no learning, no net panels.
+                val noLearn = isPasswordField || isNumberField || isPrivateField
+                val showPred = pe && !noLearn
 
-                fun updateSuggestions() { sugs.clear(); if (!showPred) return; sugs.addAll(predictor.predict(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "", sc)) }
+                fun updateSuggestions() {
+                    sugs.clear(); if (!showPred) return
+                    try { sugs.addAll(predictor.predict(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "", sc)) } catch (_: Exception) {}
+                }
 
                 Column {
                     KeyboardWrapper(widthFraction = wp / 100f, alignment = al) {
                         KeyboardView(
                             layoutSwitcher = ls, preferencesManager = prefs, heightScale = if (lk) hs * 1.25f else hs,
                             hapticEnabled = hap, soundEnabled = snd, numberRowEnabled = nr, spacebarCursor = sc2,
-                            clipboardEnabled = clipboardEnabled, searchEnabled = searchEnabled, currencyEnabled = currencyEnabled,
-                            kaomojiEnabled = kaomojiEnabled, phrasesEnabled = phrasesEnabled, translateEnabled = translateEnabled,
+                            clipboardEnabled = clipboardEnabled && !isPasswordField, searchEnabled = searchEnabled && !noLearn, currencyEnabled = currencyEnabled && !noLearn,
+                            kaomojiEnabled = kaomojiEnabled, phrasesEnabled = phrasesEnabled, translateEnabled = translateEnabled && !noLearn,
                             textEditingEnabled = textEditingEnabled, emojiEnabled = emojiEnabled,
                             clipboardHistory = if (clipboardEnabled) clipboard else null,
                             suggestionBar = if (showPred) { { SuggestionBar(suggestions = sugs, onSuggestionClick = { 
                                 val cur = getCurrentWord()
                                 if (cur.isNotEmpty()) currentInputConnection?.deleteSurroundingText(cur.length, 0)
                                 currentInputConnection?.commitText("$it ", 1)
-                                predictor.onWordCommitted(it)
+                                if (!noLearn) predictor.onWordCommitted(it)
                                 updateSuggestions()
                             }) } } else null,
                             onTextInput = { text ->
@@ -180,7 +197,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                         // getCurrentWord() AFTER space is empty, so capture before committing.
                                         preWord = getCurrentWord()
                                         corrected = false
-                                        if (acorr && !isPasswordField && !isNumberField) {
+                                        if (acorr && !noLearn) {
                                             predictor.autocorrect(preWord)?.let { fix ->
                                                 ic.deleteSurroundingText(preWord.length, 0)
                                                 ic.commitText(fix, 1)
@@ -196,12 +213,12 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                     } else text
                                     ic.commitText(final, 1)
 
-                                    if (text == " " && !corrected) { if (preWord.isNotEmpty()) predictor.onWordCommitted(preWord) }
+                                    if (text == " " && !corrected) { if (!noLearn && preWord.isNotEmpty()) predictor.onWordCommitted(preWord) }
                                     updateSuggestions()
                                 }
                             },
                             onBackspace = { performBackspace(); updateSuggestions() },
-                            onEnter = { val w = getCurrentWord(); if (w.isNotEmpty()) predictor.onWordCommitted(w); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER); sugs.clear() },
+                            onEnter = { val w = getCurrentWord(); if (!noLearn && w.isNotEmpty()) predictor.onWordCommitted(w); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER); sugs.clear() },
                             onEmojiInput = { currentInputConnection?.commitText(it, 1) },
                             onCursorMove = { val c = if (it > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT; sendKey(c) },
                             onCursorHome = { sendKey(KeyEvent.KEYCODE_MOVE_HOME) }, onCursorEnd = { sendKey(KeyEvent.KEYCODE_MOVE_END) },
