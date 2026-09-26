@@ -110,7 +110,8 @@ class CurrencyRepository {
         if (r.isEmpty()) return null
         val fromRate = r[from] ?: return null
         val toRate = r[to] ?: return null
-        if (fromRate == 0.0) return null
+        // ponytail: reject zero on either side (was from-only — returned 0.0 silently).
+        if (fromRate == 0.0 || toRate == 0.0) return null
         return amount * (toRate / fromRate)
     }
 
