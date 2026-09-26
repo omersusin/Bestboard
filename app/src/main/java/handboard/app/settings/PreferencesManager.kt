@@ -82,7 +82,8 @@ class PreferencesManager(private val context: Context) {
     val largeKeys: Flow<Boolean> = context.dataStore.data.map { it[KEY_LARGE_KEYS] ?: false }
     val multilingualEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MULTILINGUAL] ?: false }
     // ponytail: glide typing is opt-in (needs trail capture + decoder).
-    val glideEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_GLIDE] ?: false }    val activeDicts: Flow<Set<String>> = context.dataStore.data.map { it[KEY_ACTIVE_DICTS] ?: setOf("en_us") }
+    val glideEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_GLIDE] ?: false }
+    val activeDicts: Flow<Set<String>> = context.dataStore.data.map { it[KEY_ACTIVE_DICTS] ?: setOf("en_us") }
     val dictionaryId: Flow<String> = context.dataStore.data.map { it[KEY_DICTIONARY] ?: "en_us" }
 
     suspend fun setKeyboardHeight(v: Float) { context.dataStore.edit { it[KEY_HEIGHT] = v } }

@@ -50,21 +50,6 @@ class TrieGlideDecoder(
         return scored.entries.sortedByDescending { it.value }.take(limit).map { it.key }
     }
 
-    private fun resample(trail: List<GlidePoint>): List<GlidePoint> {
-        val out = ArrayList<GlidePoint>(trail.size)
-        var last: GlidePoint? = null
-        for (p in trail) {
-            val l = last
-            if (l == null || hypot(p.x - l.x, p.y - l.y) >= RESAMPLE_PX) {
-                out.add(p)
-                last = p
-            }
-        }
-        // Always keep the lift point.
-        if (last != trail.last()) out.add(trail.last())
-        return out
-    }
-
     private fun collapseToChars(points: List<GlidePoint>, keys: Map<Char, KeyRect>): String {
         val sb = StringBuilder()
         var runChar: Char? = null

@@ -159,7 +159,7 @@ fun KeyboardView(
                                 var lastDecode = 0L
                                 while (true) {
                                     val event = awaitPointerEvent()
-                                    if (event.type == PointerEventType.Release || event.type == PointerEventType.Cancel) break
+                                    if (event.type == PointerEventType.Release) break
                                     if (event.type != PointerEventType.Move) continue
                                     val change = event.changes.firstOrNull() ?: continue
                                     val now = System.currentTimeMillis()

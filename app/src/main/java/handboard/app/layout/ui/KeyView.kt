@@ -225,7 +225,6 @@ fun KeyView(
                             val event = awaitPointerEvent()
                             when (event.type) {
                                 PointerEventType.Release -> break
-                                PointerEventType.Cancel -> { moved = true; break }
                                 PointerEventType.Move -> {
                                     val change = event.changes.firstOrNull() ?: continue
                                     if ((change.position - down.position).getDistance() > touchSlopPx) {
