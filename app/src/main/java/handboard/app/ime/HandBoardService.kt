@@ -46,6 +46,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
     private var isNumberField by mutableStateOf(false)
     private var isPrivateField by mutableStateOf(false)
     private var lastSpaceTime = 0L
+    private var lastBackspaceTime = 0L
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val viewModelStore: ViewModelStore get() = store
@@ -272,7 +273,20 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                     updateSuggestions()
                                 }
                             },
-                            onBackspace = { performBackspace(); updateSuggestions() },
+                            onBackspace = {
+                                // ponytail: double-tap backspace deletes the whole word.
+                                val now = System.currentTimeMillis()
+                                if (now - lastBackspaceTime < 350) {
+                                    lastBackspaceTime = 0L
+                                    val w = getCurrentWord()
+                                    if (w.isNotEmpty()) currentInputConnection?.deleteSurroundingText(w.length, 0)
+                                    else performBackspace()
+                                } else {
+                                    lastBackspaceTime = now
+                                    performBackspace()
+                                }
+                                updateSuggestions()
+                            },
                             onEnter = { val w = getCurrentWord(); if (!noLearn && w.isNotEmpty()) predictor.onWordCommitted(w); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER); sugs.clear() },
                             onEmojiInput = { currentInputConnection?.commitText(it, 1) },
                             onCursorMove = { val c = if (it > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT; sendKey(c) },

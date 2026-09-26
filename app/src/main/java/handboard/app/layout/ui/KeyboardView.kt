@@ -27,10 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import handboard.app.prediction.glide.GlidePoint
@@ -145,6 +147,7 @@ fun KeyboardView(
         if (!isBrowserOpen && (currentPanel == KeyboardPanel.KEYBOARD || isInputPanel)) {
             // ponytail: glide session — window offset for trail coords, decode throttle, commit wrapper.
             var gridWindow by remember { mutableStateOf(Offset.Zero) }
+            val glideHaptic = LocalHapticFeedback.current
             val commitGlide: (String) -> Unit = { word -> state.onTextCommitted(); onGlideCommit(word) }
             val glideActiveNow = glideEnabled && glideUi != null &&
                 currentPanel == KeyboardPanel.KEYBOARD && state.currentLayer == KeyboardLayer.LETTERS
@@ -173,6 +176,7 @@ fun KeyboardView(
                                     if (!gliding && (change.position - down.position).getDistance() > 48f) {
                                         gliding = true
                                         glideUi.active = true
+                                        glideHaptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                     if (gliding) {
                                         glideUi.trail.clear()

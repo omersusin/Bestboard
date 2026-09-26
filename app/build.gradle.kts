@@ -12,8 +12,8 @@ android {
         applicationId = "handboard.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0.0"
+        versionCode = 4
+        versionName = "3.1.0"
     }
 
     // ponytail: release signing from env/secrets (CI) or local keystore.properties (dev).
@@ -36,8 +36,9 @@ android {
 
     buildTypes {
         release {
-            // ★ CRASH SEBEBİ BUYDU. ProGuard/R8 sınıfları siliyordu. Kapatıldı.
-            isMinifyEnabled = false
+            // ponytail: minify back ON — the ViewTree-owner crash that forced it off is fixed.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
