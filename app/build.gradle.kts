@@ -16,6 +16,24 @@ android {
         versionName = "3.0.0"
     }
 
+    // ponytail: release signing from env/secrets (CI) or local keystore.properties (dev).
+    // Without both, release builds stay unsigned — debug is unaffected.
+    signingConfigs {
+        val keystorePath = System.getenv("BESTBOARD_KEYSTORE_PATH")
+            ?: project.findProperty("bestboard.keystore.path")?.toString()
+        if (!keystorePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("BESTBOARD_KEYSTORE_PASSWORD")
+                    ?: project.findProperty("bestboard.keystore.password")?.toString()
+                keyAlias = System.getenv("BESTBOARD_KEY_ALIAS")
+                    ?: project.findProperty("bestboard.key.alias")?.toString()
+                keyPassword = System.getenv("BESTBOARD_KEY_PASSWORD")
+                    ?: project.findProperty("bestboard.key.password")?.toString()
+            }
+        }
+    }
+
     buildTypes {
         release {
             // ★ CRASH SEBEBİ BUYDU. ProGuard/R8 sınıfları siliyordu. Kapatıldı.
@@ -24,6 +42,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 

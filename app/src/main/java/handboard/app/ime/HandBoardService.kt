@@ -169,7 +169,8 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val activeDicts by prefs.activeDicts.collectAsState(initial = setOf("en_us"))
                 val dictId by prefs.dictionaryId.collectAsState(initial = "en_us")
                 androidx.compose.runtime.DisposableEffect(blurActive) {
-                    val w = this@HandBoardService.window
+                    // ponytail: InputMethodService.window is a Dialog — unwrap to the view Window.
+                    val w = this@HandBoardService.window?.window
                     if (blurActive) FrostedGlass.applyToWindow(w) else FrostedGlass.clear(w)
                     onDispose { FrostedGlass.clear(w) }
                 }

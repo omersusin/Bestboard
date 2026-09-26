@@ -1,4 +1,4 @@
-name: Release HandBoard
+name: Release Bestboard
 
 on:
   push:
@@ -28,7 +28,22 @@ jobs:
       - name: Accept SDK Licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
 
+      - name: Restore release keystore (if secrets present)
+        env:
+          BESTBOARD_KEYSTORE_BASE64: ${{ secrets.BESTBOARD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$BESTBOARD_KEYSTORE_BASE64" ]; then
+            echo "$BESTBOARD_KEYSTORE_BASE64" | base64 -d > /tmp/bestboard-release.jks
+            echo "BESTBOARD_KEYSTORE_PATH=/tmp/bestboard-release.jks" >> $GITHUB_ENV
+          else
+            echo "No keystore secret — release APK will be unsigned."
+          fi
+
       - name: Build Debug & Release APK
+        env:
+          BESTBOARD_KEYSTORE_PASSWORD: ${{ secrets.BESTBOARD_KEYSTORE_PASSWORD }}
+          BESTBOARD_KEY_ALIAS: ${{ secrets.BESTBOARD_KEY_ALIAS }}
+          BESTBOARD_KEY_PASSWORD: ${{ secrets.BESTBOARD_KEY_PASSWORD }}
         run: |
           gradle assembleDebug
           gradle assembleRelease
@@ -40,25 +55,20 @@ jobs:
       - name: Prepare APKs
         run: |
           mkdir -p release_apks
-          cp app/build/outputs/apk/debug/app-debug.apk release_apks/HandBoard-${{ steps.tag.outputs.VERSION }}-debug.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk release_apks/HandBoard-${{ steps.tag.outputs.VERSION }}-release-unsigned.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release_apks/Bestboard-${{ steps.tag.outputs.VERSION }}-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk release_apks/Bestboard-${{ steps.tag.outputs.VERSION }}-release.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "HandBoard ${{ steps.tag.outputs.VERSION }}"
+          name: "Bestboard ${{ steps.tag.outputs.VERSION }}"
           generate_release_notes: true
           body: |
-            ## HandBoard ${{ steps.tag.outputs.VERSION }}
+            ## Bestboard ${{ steps.tag.outputs.VERSION }}
 
             ### 📥 Installation
-            - Download `HandBoard-v...-debug.apk` to install right away (Recommended for general testing).
-            - Download `HandBoard-v...-release-unsigned.apk` if you intend to sign it yourself.
-            
-            ### ✨ Fixed in this update:
-            - **Inline Search Working:** Search bar now acts as an overlay. Type directly from the keyboard without losing focus.
-            - **Dictionary Import:** Added file picker in settings to import `.txt` / `.dict` files.
-            - Added Release Build targets to GitHub actions.
+            - `Bestboard-v...-debug.apk` installs right away (testing).
+            - `Bestboard-v...-release.apk` is the release build (signed when keystore secrets are configured, unsigned otherwise).
           files: release_apks/*.apk
           fail_on_unmatched_files: true
           draft: false
