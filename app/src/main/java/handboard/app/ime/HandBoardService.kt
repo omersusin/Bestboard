@@ -79,9 +79,24 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
 
     override fun onFinishInputView(f: Boolean) { super.onFinishInputView(f); lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE) }
 
-    private fun getCurrentWord(): String = try {
-        predictor.getCurrentWord(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "")
+    // ponytail: over-read + trim from one guarded helper (was 3 inline reads, 1 unguarded).
+    private fun inputTextBeforeCursor(n: Int): String = try {
+        (currentInputConnection?.getTextBeforeCursor(n + 16, 0)?.toString() ?: "").takeLast(n)
     } catch (_: Exception) { "" }
+
+    private fun getCurrentWord(): String = predictor.getCurrentWord(inputTextBeforeCursor(100))
+
+    /** Delete-then-insert as one editor transaction (was 2 IPCs — flicker + WebView races). */
+    private fun replaceWordBeforeCursor(oldLen: Int, newText: String) {
+        val ic = currentInputConnection ?: return
+        ic.beginBatchEdit()
+        try {
+            if (oldLen > 0) ic.deleteSurroundingText(oldLen, 0)
+            ic.commitText(newText, 1)
+        } finally {
+            ic.endBatchEdit()
+        }
+    }
 
     private fun performBackspace() {
         val ic = currentInputConnection ?: return
@@ -177,7 +192,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
 
                 fun updateSuggestions() {
                     sugs.clear(); if (!showPred) return
-                    try { sugs.addAll(predictor.predict(currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: "", sc)) } catch (_: Exception) {}
+                    sugs.addAll(predictor.predict(inputTextBeforeCursor(100), sc))
                 }
 
                 Column {
@@ -205,8 +220,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                             splitEnabled = splitPref && wp == 100,
                             suggestionBar = if (showPred) { { SuggestionBar(suggestions = sugs, onSuggestionClick = { 
                                 val cur = getCurrentWord()
-                                if (cur.isNotEmpty()) currentInputConnection?.deleteSurroundingText(cur.length, 0)
-                                currentInputConnection?.commitText("$it ", 1)
+                                replaceWordBeforeCursor(cur.length, "$it ")
                                 if (!noLearn) predictor.onWordCommitted(it)
                                 updateSuggestions()
                             }) } } else null,
@@ -231,8 +245,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                         corrected = false
                                         if (acorr && !noLearn) {
                                             predictor.autocorrect(preWord)?.let { fix ->
-                                                ic.deleteSurroundingText(preWord.length, 0)
-                                                ic.commitText(fix, 1)
+                                                replaceWordBeforeCursor(preWord.length, fix)
                                                 predictor.onWordCommitted(fix)
                                                 corrected = true
                                             }
