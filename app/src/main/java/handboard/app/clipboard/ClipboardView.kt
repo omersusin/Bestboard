@@ -52,7 +52,7 @@ fun ClipboardView(
             Box(modifier = Modifier.fillMaxWidth().height(listHeight), contentAlignment = Alignment.Center) { Text(text = "Clipboard is empty", color = KeyTextDim, fontSize = 14.sp) }
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth().height(listHeight), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                items(items.toList(), key = { it.timestamp }) { item ->
+                items(items.toList(), key = { it.id }) { item ->
                     ClipboardItemCard(item = item, onPasteText = onPasteText, onPasteImage = onPasteImage)
                 }
             }
@@ -68,7 +68,15 @@ private fun ClipboardItemCard(item: ClipboardItem, onPasteText: (String) -> Unit
     if (item.isImage && item.imageUri != null) {
         LaunchedEffect(item.imageUri) {
             bitmap = withContext(Dispatchers.IO) {
-                try { context.contentResolver.openInputStream(item.imageUri)?.use { stream -> BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap() } } catch (_: Exception) { null }
+                try {
+                    // ponytail: bound thumbnail decode (was fixed inSampleSize=4 — huge images OOM).
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(item.imageUri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    var sample = 1
+                    val maxPx = 512
+                    while (bounds.outWidth / (sample * 2) >= maxPx || bounds.outHeight / (sample * 2) >= maxPx) sample *= 2
+                    context.contentResolver.openInputStream(item.imageUri)?.use { stream -> BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap() }
+                } catch (_: Exception) { null }
             }
         }
     }

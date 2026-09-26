@@ -132,7 +132,7 @@ fun SettingsScreen(preferencesManager: PreferencesManager, onBack: () -> Unit) {
                 Sub("Engine currently loaded with $loadedWordCount valid words.")
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { filePicker.launch("*/*") }, modifier = Modifier.weight(1f), enabled = !isImporting) { Text(if (isImporting) "Converting..." else "Import File") }
+                    Button(onClick = { filePicker.launch("text/plain") }, modifier = Modifier.weight(1f), enabled = !isImporting) { Text(if (isImporting) "Converting..." else "Import File") }
                     Button(onClick = { dictManager.deleteCustomDictionaries(); dictManager = DictionaryManager(context); Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show() }, modifier = Modifier.weight(1f)) { Text("Delete Imports") }
                 }
             }

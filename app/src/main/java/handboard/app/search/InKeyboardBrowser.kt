@@ -55,7 +55,7 @@ fun InKeyboardBrowser(
         ) {
             // KAPAT TUŞU -> KLAVYEYİ KAPATIR
             Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(ActionKeyBackground).clickable { 
-                webView?.destroy()
+                val wv = webView; webView = null; wv?.destroy()
                 onClose()
                 onDismissKeyboard() 
             }.padding(8.dp)) { CloseIcon(tint = KeyText, size = 16.dp) }
@@ -111,7 +111,10 @@ fun InKeyboardBrowser(
                         builtInZoomControls = true
                         displayZoomControls = false
                         setSupportZoom(true)
-                        mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        // ponytail: harden IME WebView (was COMPAT + file/content access open).
+                        mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        allowFileAccess = false
+                        allowContentAccess = false
                     }
                     webViewClient = object : WebViewClient() {
                         override fun onPageStarted(v: WebView?, p: String?, f: Bitmap?) { isLoading = true; p?.let { currentUrl = it } }
@@ -139,5 +142,10 @@ fun InKeyboardBrowser(
             },
             modifier = Modifier.fillMaxWidth().weight(1f)
         )
+
+        // ponytail: WebView lives in the IME process — always destroy on dispose (was Close-only).
+        DisposableEffect(Unit) {
+            onDispose { val wv = webView; webView = null; try { wv?.stopLoading(); wv?.destroy() } catch (_: Exception) {} }
+        }
     }
 }

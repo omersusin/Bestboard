@@ -190,7 +190,10 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                     if (text == " ") {
                                         val now = System.currentTimeMillis()
                                         if (now - lastSpaceTime < 400 && !isPasswordField) {
-                                            ic.deleteSurroundingText(1, 0); ic.commitText(". ", 1); lastSpaceTime = 0L; updateSuggestions(); return@KeyboardView
+                                            // ponytail: verify the char is really a space (was blind delete).
+                                            val before = try { ic.getTextBeforeCursor(1, 0)?.toString() } catch (_: Exception) { null }
+                                            if (before == " ") ic.deleteSurroundingText(1, 0)
+                                            ic.commitText(". ", 1); lastSpaceTime = 0L; updateSuggestions(); return@KeyboardView
                                         }
                                         lastSpaceTime = now
                                         // ponytail: autocorrect on space + learn typed word for bigrams. Skip passwords/numbers.
@@ -208,8 +211,9 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                     } else lastSpaceTime = 0L
 
                                     val final = if (text.length == 1 && text[0].isLetter() && ac && !isPasswordField) {
-                                        val b = ic.getTextBeforeCursor(2, 0)?.toString() ?: ""
-                                        if (b.isEmpty() || b.trimEnd().lastOrNull() in listOf('.', '!', '?', '\n')) text.uppercase() else text
+                                        val b = try { ic.getTextBeforeCursor(2, 0)?.toString() ?: "" } catch (_: Exception) { "" }
+                                        // ponytail: ROOT locale (was default — Turkish i→İ broke English caps).
+                                        if (b.isEmpty() || b.trimEnd().lastOrNull() in listOf('.', '!', '?', '\n')) text.uppercase(java.util.Locale.ROOT) else text
                                     } else text
                                     ic.commitText(final, 1)
 

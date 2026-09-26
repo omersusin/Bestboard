@@ -17,6 +17,8 @@ class AospDictConverter(private val context: Context) {
         private const val MIN_WORD_LEN = 2
         private const val MAX_WORD_LEN = 30
         private const val SAMPLE_SIZE = 4096
+        // ponytail: cap imports (was unbounded readBytes — OOM in keyboard process).
+        private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
     }
 
     suspend fun convertAndSave(uri: Uri): Result<File> = withContext(Dispatchers.IO) {
@@ -123,8 +125,19 @@ class AospDictConverter(private val context: Context) {
     }
 
     private fun readBytes(uri: Uri): ByteArray {
-        return context.contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
-            ?: throw IllegalStateException("Dosya açılamadı: $uri")
+        return context.contentResolver.openInputStream(uri)?.use { stream ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val n = stream.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > MAX_IMPORT_BYTES) throw IllegalStateException("Dosya çok büyük (5MB sınırı).")
+                out.write(buf, 0, n)
+            }
+            out.toByteArray()
+        } ?: throw IllegalStateException("Dosya açılamadı: $uri")
     }
 
     private fun prepareOutputFile(): File {
