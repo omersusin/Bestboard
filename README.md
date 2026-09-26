@@ -1,12 +1,12 @@
 <div align="center">
 
-# ✋ HandBoard
+# ✋ Bestboard
 
-**One-handed keyboard for everyone**
+**The best keyboard in existence — one-handed for everyone**
 
-An accessibility-focused Android keyboard designed for people who type with one hand, one finger, or have limited mobility.
+An accessibility-focused Android keyboard designed for people who type with one hand, one finger, or have limited mobility. Forked from Handboard.
 
-[![Build](https://github.com/omersusin/Handboard/actions/workflows/build.yml/badge.svg)](https://github.com/omersusin/Handboard/actions/workflows/build.yml)
+[![Build](https://github.com/omersusin/Bestboard/actions/workflows/build.yml/badge.svg)](https://github.com/omersusin/Bestboard/actions/workflows/build.yml)
 [![API 24+](https://img.shields.io/badge/API-24%2B-brightgreen.svg)](https://developer.android.com/about/versions/nougat)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-purple.svg)](https://kotlinlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -17,7 +17,7 @@ An accessibility-focused Android keyboard designed for people who type with one 
 
 ## Who Is This For?
 
-HandBoard is designed for people who:
+Bestboard is designed for people who:
 
 - use their phone with **one hand**
 - type mostly with their **thumb**

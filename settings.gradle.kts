@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HandBoard"
+rootProject.name = "Bestboard"
 include(":app")

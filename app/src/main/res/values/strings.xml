@@ -1,21 +1,21 @@
 <resources>
-    <string name="app_name">HandBoard</string>
+    <string name="app_name">Bestboard</string>
     <string name="subtype_en_us">English (US)</string>
 
     <!-- Setup -->
-    <string name="welcome_title">HandBoard</string>
+    <string name="welcome_title">Bestboard</string>
     <string name="welcome_subtitle">One-handed keyboard for everyone</string>
-    <string name="step1_title">Enable HandBoard</string>
-    <string name="step1_desc">Open keyboard settings and enable HandBoard</string>
+    <string name="step1_title">Enable Bestboard</string>
+    <string name="step1_desc">Open keyboard settings and enable Bestboard</string>
     <string name="step1_button">Open Settings</string>
-    <string name="step2_title">Select HandBoard</string>
-    <string name="step2_desc">Choose HandBoard as your active keyboard</string>
+    <string name="step2_title">Select Bestboard</string>
+    <string name="step2_desc">Choose Bestboard as your active keyboard</string>
     <string name="step2_button">Select Keyboard</string>
     <string name="keyboard_settings">Keyboard Settings</string>
-    <string name="status_enabled">HandBoard is enabled ✓</string>
-    <string name="status_not_enabled">HandBoard is not enabled</string>
-    <string name="status_selected">HandBoard is your active keyboard ✓</string>
-    <string name="status_not_selected">HandBoard is not selected</string>
+    <string name="status_enabled">Bestboard is enabled ✓</string>
+    <string name="status_not_enabled">Bestboard is not enabled</string>
+    <string name="status_selected">Bestboard is your active keyboard ✓</string>
+    <string name="status_not_selected">Bestboard is not selected</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -56,7 +56,7 @@
     <string name="high_contrast_desc">Increase key border contrast for visibility</string>
     <string name="large_keys_toggle">Large Keys</string>
     <string name="large_keys_desc">Increase key size for easier tapping</string>
-    <string name="about_version">HandBoard v2.0.0</string>
+    <string name="about_version">Bestboard v3.0.0</string>
     <string name="about_desc">One-handed keyboard for everyone</string>
 
     <!-- Keyboard -->

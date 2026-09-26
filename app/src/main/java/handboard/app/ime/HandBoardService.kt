@@ -114,6 +114,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val bp by prefs.bottomPadding.collectAsState(initial = 0)
                 val nr by prefs.numberRowEnabled.collectAsState(initial = false)
                 val ac by prefs.autoCapitalize.collectAsState(initial = true)
+                val acorr by prefs.autocorrectEnabled.collectAsState(initial = true)
                 val sc2 by prefs.spacebarCursor.collectAsState(initial = true)
                 val lk by prefs.largeKeys.collectAsState(initial = false)
                 
@@ -172,6 +173,18 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                             ic.deleteSurroundingText(1, 0); ic.commitText(". ", 1); lastSpaceTime = 0L; updateSuggestions(); return@KeyboardView
                                         }
                                         lastSpaceTime = now
+                                        // ponytail: autocorrect on space + learn typed word for bigrams. Skip passwords/numbers.
+                                        // getCurrentWord() AFTER space is empty, so capture before committing.
+                                        val preWord = getCurrentWord()
+                                        var corrected = false
+                                        if (acorr && !isPasswordField && !isNumberField) {
+                                            predictor.autocorrect(preWord)?.let { fix ->
+                                                ic.deleteSurroundingText(preWord.length, 0)
+                                                ic.commitText(fix, 1)
+                                                predictor.onWordCommitted(fix)
+                                                corrected = true
+                                            }
+                                        }
                                     } else lastSpaceTime = 0L
 
                                     val final = if (text.length == 1 && text[0].isLetter() && ac && !isPasswordField) {
@@ -180,7 +193,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                     } else text
                                     ic.commitText(final, 1)
 
-                                    if (text == " ") { val w = getCurrentWord(); if (w.isNotEmpty()) predictor.onWordCommitted(w) }
+                                    if (text == " " && !corrected) { if (preWord.isNotEmpty()) predictor.onWordCommitted(preWord) }
                                     updateSuggestions()
                                 }
                             },

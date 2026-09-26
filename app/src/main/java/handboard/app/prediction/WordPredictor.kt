@@ -47,11 +47,24 @@ class WordPredictor {
         if (prefix == lastPrefix && lastResults.isNotEmpty()) return lastResults.take(maxSuggestions)
 
         val results = trie.wordsWithPrefix(prefix, maxSuggestions + 3).map { it.first }.filter { it != prefix }
+        // ponytail: fall back to 1-edit fuzzy when no prefix match (typo). Trie.fuzzySearch already exists.
+        val final = if (results.isEmpty() && !trie.search(prefix)) {
+            trie.fuzzySearch(prefix, maxSuggestions).map { it.first }
+        } else results
         lastPrefix = prefix
-        lastResults = results
+        lastResults = final
 
-        if (trie.search(prefix) && results.isEmpty()) return predictNextWord(maxSuggestions, prefix)
-        return results.take(maxSuggestions)
+        if (trie.search(prefix) && final.isEmpty()) return predictNextWord(maxSuggestions, prefix)
+        return final.take(maxSuggestions)
+    }
+
+    fun isKnown(word: String): Boolean = trie.search(word.lowercase().trim())
+
+    fun autocorrect(word: String): String? {
+        val clean = word.lowercase().trim()
+        if (clean.length < 2 || clean.length > 30) return null
+        if (trie.search(clean)) return null
+        return trie.fuzzySearch(clean, 1).firstOrNull()?.first
     }
 
     private fun predictNextWord(limit: Int, overrideLastWord: String? = null): List<String> {
