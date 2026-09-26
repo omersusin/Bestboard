@@ -57,6 +57,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.2")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // ponytail: was transitive-only (build audit) — declare explicitly.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Emoji Picker
     implementation("androidx.emoji2:emoji2:1.5.0")

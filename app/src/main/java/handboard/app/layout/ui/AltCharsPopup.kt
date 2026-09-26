@@ -35,7 +35,8 @@ fun AltCharsPopup(
         alignment = Alignment.TopCenter,
         offset = IntOffset(0, -140),
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true)
+        // ponytail: never steal editor focus in IME (was focusable=true — hid the keyboard).
+        properties = PopupProperties(focusable = false)
     ) {
         Row(
             modifier = Modifier

@@ -81,6 +81,10 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
 
     private fun performBackspace() {
         val ic = currentInputConnection ?: return
+        try {
+            // ponytail: delete selection first (was codepoint-delete — left selected text behind).
+            if (!ic.getSelectedText(0).isNullOrEmpty()) { ic.commitText("", 1); return }
+        } catch (_: Exception) { }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) ic.deleteSurroundingTextInCodePoints(1, 0)
         else ic.deleteSurroundingText(1, 0)
     }
@@ -144,8 +148,9 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val dictId by prefs.dictionaryId.collectAsState(initial = "en_us")
 
                 LaunchedEffect(clipboardEnabled) {
-                    if (clipboardEnabled && clipboard == null) { clipboard = ClipboardHistory(this@HandBoardService); clipboard?.initialize() }
-                    else if (!clipboardEnabled) { clipboard?.destroy(); clipboard = null }
+                    // ponytail: destroy first (was create-without-destroy on rapid toggle — leaked listener).
+                    clipboard?.destroy(); clipboard = null
+                    if (clipboardEnabled) { clipboard = ClipboardHistory(this@HandBoardService); clipboard?.initialize() }
                 }
 
                 LaunchedEffect(multiEnabled, activeDicts, dictId) {

@@ -2,12 +2,18 @@ package handboard.app.prediction
 
 import android.content.Context
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PersonalDictionary(context: Context) {
     private val wordsFile = File(context.filesDir, "personal_words.txt")
     private val bigramsFile = File(context.filesDir, "personal_bigrams.txt")
     private val words = mutableMapOf<String, Int>()
     private val bigrams = HashMap<String, HashMap<String, Int>>()
+    // ponytail: file appends off the UI thread (was appendText on keystroke — ANR risk).
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
         try {
@@ -32,7 +38,7 @@ class PersonalDictionary(context: Context) {
         val w = word.lowercase()
         val freq = (words[w] ?: 0) + 5
         words[w] = freq
-        try { wordsFile.appendText("$w\t$freq\n") } catch (_: Exception) {}
+        ioScope.launch { try { wordsFile.appendText("$w\t$freq\n") } catch (_: Exception) {} }
     }
 
     fun learnBigram(prev: String, current: String) {
@@ -41,7 +47,7 @@ class PersonalDictionary(context: Context) {
         val c = current.lowercase()
         val count = (bigrams.getOrPut(p) { HashMap() }[c] ?: 0) + 1
         bigrams[p]!![c] = count
-        try { bigramsFile.appendText("$p\t$c\t$count\n") } catch (_: Exception) {}
+        ioScope.launch { try { bigramsFile.appendText("$p\t$c\t$count\n") } catch (_: Exception) {} }
     }
 
     fun applyToTrie(trie: Trie) {
