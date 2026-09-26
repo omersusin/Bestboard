@@ -6,8 +6,10 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +31,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import handboard.app.prediction.glide.GlidePoint
 import handboard.app.prediction.glide.GlideUiState
@@ -70,6 +73,9 @@ fun KeyboardView(
     onGlideDecode: (List<GlidePoint>) -> List<String> = { emptyList() },
     onGlideCandidates: (List<String>) -> Unit = {},
     onGlideCommit: (String) -> Unit = {},
+    // ponytail: split is a render gap, not a layout — applies to any layout at full width.
+    splitEnabled: Boolean = false,
+    splitGap: Dp = 24.dp,
     onTextInput: (String) -> Unit, onBackspace: () -> Unit, onEnter: () -> Unit,
     onEmojiInput: (String) -> Unit = onTextInput,
     onCursorMove: (Int) -> Unit = {}, onCursorHome: () -> Unit = {}, onCursorEnd: () -> Unit = {},
@@ -203,7 +209,10 @@ fun KeyboardView(
 
                     currentRows.forEach { row ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                            row.forEach { kd ->
+                            // ponytail: center gap for two thumbs; never split the spacebar row.
+                            val gapAt = if (splitEnabled && row.none { it.action is KeyAction.Space }) row.size / 2 else -1
+                            row.forEachIndexed { i, kd ->
+                                if (i == gapAt) Spacer(Modifier.width(splitGap))
                                 KeyView(
                                     modifier = Modifier.weight(kd.widthWeight), keyData = kd, isShifted = state.shouldUpperCase, isCapsLock = state.isCapsLock, currentLayer = state.currentLayer, heightScale = heightScale, hapticEnabled = hapticEnabled, soundEnabled = soundEnabled,
                                     onCursorMove = if (spacebarCursor && kd.action is KeyAction.Space && currentPanel == KeyboardPanel.KEYBOARD) { { dir -> onCursorMove(dir) } } else null,

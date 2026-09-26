@@ -167,6 +167,7 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                 val glideUi = remember { GlideUiState() }
                 LaunchedEffect(ln) { glideUi.geometry.clear() }
                 val glidePref by prefs.glideEnabled.collectAsState(initial = false)
+                val splitPref by prefs.splitEnabled.collectAsState(initial = false)
 
                 val sugs = remember { mutableStateListOf<String>() }
                 val noLearn = isPasswordField || isNumberField || isPrivateField
@@ -200,6 +201,8 @@ class HandBoardService : InputMethodService(), LifecycleOwner, ViewModelStoreOwn
                                 }
                                 updateSuggestions()
                             },
+                            // ponytail: split assumes full-width two-thumb; one-hand widths keep unsplit.
+                            splitEnabled = splitPref && wp == 100,
                             suggestionBar = if (showPred) { { SuggestionBar(suggestions = sugs, onSuggestionClick = { 
                                 val cur = getCurrentWord()
                                 if (cur.isNotEmpty()) currentInputConnection?.deleteSurroundingText(cur.length, 0)
