@@ -8,8 +8,46 @@ import java.io.InputStreamReader
 data class DictionaryInfo(val id: String, val name: String, val isAsset: Boolean, val file: File? = null)
 
 class DictionaryManager(private val context: Context) {
-    
-    private val validWordRegex = Regex("^[\\p{L}]+$")
+
+    companion object {
+        internal val VALID_WORD_REGEX = Regex("^[\\p{L}]+$")
+
+        // ponytail: pure line parsers extracted for JVM tests (were inline + asset-bound).
+        internal fun parseDictLine(line: String): Pair<String, Int>? {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) return null
+            val parts = trimmed.split(Regex("\\s+"), limit = 2)
+            val word = parts[0].lowercase()
+            if (word.length !in 2..30 || !word.matches(VALID_WORD_REGEX)) return null
+            val freq = if (parts.size > 1) parts[1].toIntOrNull() ?: 500 else 500
+            return word to freq
+        }
+
+        internal fun parseBigramLine(line: String): Triple<String, String, Int>? {
+            val parts = line.split(Regex("\\s+"))
+            if (parts.size < 3) return null
+            val prev = parts[0].lowercase()
+            val next = parts[1].lowercase()
+            if (!prev.matches(VALID_WORD_REGEX) || !next.matches(VALID_WORD_REGEX)) return null
+            return Triple(prev, next, parts[2].toIntOrNull() ?: 1)
+        }
+
+        internal fun loadIntoTrie(reader: BufferedReader, trie: Trie) {
+            reader.use { r ->
+                r.forEachLine { line -> parseDictLine(line)?.let { (w, f) -> trie.insert(w, f) } }
+            }
+        }
+
+        internal fun loadBigrams(reader: BufferedReader, bigramMap: HashMap<String, HashMap<String, Int>>) {
+            reader.use { r ->
+                r.forEachLine { line ->
+                    parseBigramLine(line)?.let { (prev, next, count) ->
+                        bigramMap.getOrPut(prev) { HashMap() }[next] = count
+                    }
+                }
+            }
+        }
+    }
 
     fun getAvailable(): List<DictionaryInfo> {
         val list = mutableListOf<DictionaryInfo>()
@@ -33,24 +71,11 @@ class DictionaryManager(private val context: Context) {
 
     fun loadIntoTrie(dictInfo: DictionaryInfo, trie: Trie) {
         try {
-            val reader = if (dictInfo.isAsset) {
-                BufferedReader(InputStreamReader(context.assets.open("${dictInfo.id}.txt")))
+            if (dictInfo.isAsset) {
+                loadIntoTrie(BufferedReader(InputStreamReader(context.assets.open("${dictInfo.id}.txt"))), trie)
             } else {
-                dictInfo.file?.bufferedReader() ?: return
-            }
-
-            reader.use { r ->
-                r.forEachLine { line ->
-                    val trimmed = line.trim()
-                    if (trimmed.isNotEmpty()) {
-                        val parts = trimmed.split(Regex("\\s+"), limit = 2)
-                        val word = parts[0].lowercase()
-                        if (word.length in 2..30 && word.matches(validWordRegex)) {
-                            val freq = if (parts.size > 1) parts[1].toIntOrNull() ?: 500 else 500
-                            trie.insert(word, freq)
-                        }
-                    }
-                }
+                val f = dictInfo.file ?: return
+                loadIntoTrie(f.bufferedReader(), trie)
             }
         } catch (_: Exception) {}
     }
@@ -58,18 +83,7 @@ class DictionaryManager(private val context: Context) {
     fun loadBigrams(dictId: String, bigramMap: HashMap<String, HashMap<String, Int>>) {
         if (dictId.startsWith("ext_")) return 
         try {
-            BufferedReader(InputStreamReader(context.assets.open("${dictId}_bigrams.txt"))).use { r ->
-                r.forEachLine { line ->
-                    val parts = line.split(Regex("\\s+"))
-                    if (parts.size >= 3) {
-                        val prev = parts[0].lowercase()
-                        val next = parts[1].lowercase()
-                        if (prev.matches(validWordRegex) && next.matches(validWordRegex)) {
-                            bigramMap.getOrPut(prev) { HashMap() }[next] = parts[2].toIntOrNull() ?: 1
-                        }
-                    }
-                }
-            }
+            loadBigrams(BufferedReader(InputStreamReader(context.assets.open("${dictId}_bigrams.txt"))), bigramMap)
         } catch (_: Exception) {}
     }
 

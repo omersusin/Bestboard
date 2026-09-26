@@ -111,6 +111,17 @@ class WordPredictor {
         return if (word.length > 30) "" else word.lowercase()
     }
 
+    /** Test seam: seed an in-memory dictionary without Android assets. */
+    internal fun seedForTest(words: Map<String, Int>, bigrams: Map<String, Map<String, Int>> = emptyMap()) {
+        words.forEach { (w, f) -> trie.insert(w, f) }
+        synchronized(bigramMap) {
+            bigrams.forEach { (prev, nexts) ->
+                bigramMap.getOrPut(prev) { HashMap() }.putAll(nexts)
+            }
+        }
+        isLoaded = true
+    }
+
     fun getCurrentWord(textBeforeCursor: String): String = extractCurrentWord(textBeforeCursor)
     fun getDictionarySize(): Int = trie.size()
     fun getPersonalWords(): Map<String, Int> = personalDict?.getWords() ?: emptyMap()

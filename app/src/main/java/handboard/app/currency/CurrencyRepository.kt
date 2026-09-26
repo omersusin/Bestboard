@@ -11,6 +11,33 @@ import java.net.URL
 
 class CurrencyRepository {
 
+    companion object {
+        // ponytail: pure helpers extracted for JVM tests (were inline in IO paths).
+        internal fun parseRates(body: String): Map<String, Double>? {
+            val json = JSONObject(body)
+            if (json.optString("result") != "success") return null
+            val ratesObj = json.getJSONObject("rates")
+            val map = HashMap<String, Double>()
+            val keys = ratesObj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                try { map[key] = ratesObj.getDouble(key) } catch (_: Exception) {}
+            }
+            return map
+        }
+
+        internal fun buildCurrencyList(rates: Map<String, Double>): List<CurrencyInfo> {
+            val newList = mutableListOf<CurrencyInfo>()
+            val priority = listOf("TRY", "USD", "EUR", "GBP")
+            rates.keys.forEach { code ->
+                newList.add(CurrencyInfo(code, code, code.take(2)))
+            }
+            val sorted = newList.sortedBy { it.code }
+            val top = priority.mapNotNull { p -> sorted.find { it.code == p } }
+            return top + sorted.filter { it.code !in priority }
+        }
+    }
+
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
@@ -51,14 +78,7 @@ class CurrencyRepository {
                         _error.value = null
                         
                         // Dinamik listeyi inşa et
-                        val newList = mutableListOf<CurrencyInfo>()
-                        val priority = listOf("TRY", "USD", "EUR", "GBP")
-                        result.keys.forEach { code -> 
-                            newList.add(CurrencyInfo(code, code, code.take(2)))
-                        }
-                        val sorted = newList.sortedBy { it.code }
-                        val top = priority.mapNotNull { p -> sorted.find { it.code == p } }
-                        availableCurrencies = top + sorted.filter { it.code !in priority }
+                        availableCurrencies = buildCurrencyList(result)
                     } else {
                         _error.value = "Failed to fetch rates"
                     }
@@ -82,22 +102,11 @@ class CurrencyRepository {
         try {
             if (conn.responseCode != 200) return null
             val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val json = JSONObject(body)
-            if (json.optString("result") != "success") return null
-
-            val ratesObj = json.getJSONObject("rates")
-            val map = HashMap<String, Double>()
-            val keys = ratesObj.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                try { map[key] = ratesObj.getDouble(key) } catch (_: Exception) {}
-            }
-            return map
+            return parseRates(body)
         } finally { conn.disconnect() }
     }
 
-    fun convert(amount: Double, from: String, to: String): Double? {
-        val r = _rates.value
+    fun convert(amount: Double, from: String, to: String): Double? {        val r = _rates.value
         if (r.isEmpty()) return null
         val fromRate = r[from] ?: return null
         val toRate = r[to] ?: return null
@@ -106,6 +115,9 @@ class CurrencyRepository {
     }
 
     fun destroy() { job.cancel() }
+
+    /** Test seeder for the rates backing [convert]. */
+    internal fun setRates(map: Map<String, Double>) { _rates.value = map }
 }
 
 data class CurrencyInfo(val code: String, val name: String, val symbol: String)

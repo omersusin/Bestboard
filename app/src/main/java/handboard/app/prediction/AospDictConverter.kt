@@ -14,11 +14,106 @@ class AospDictConverter(private val context: Context) {
         private const val TAG = "AospDictConverter"
         private const val OUTPUT_DIR = "dictionaries"
         private const val DEFAULT_FREQ = 500
-        private const val MIN_WORD_LEN = 2
-        private const val MAX_WORD_LEN = 30
+        internal const val MIN_WORD_LEN = 2
+        internal const val MAX_WORD_LEN = 30
         private const val SAMPLE_SIZE = 4096
         // ponytail: cap imports (was unbounded readBytes — OOM in keyboard process).
-        private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
+        internal const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
+
+        // ponytail: pure helpers live in companion for JVM tests (were private instance).
+        internal fun isPlainText(bytes: ByteArray): Boolean {
+            if (bytes.isEmpty()) return false
+            val checkLen = minOf(bytes.size, SAMPLE_SIZE)
+            var textChars = 0
+
+            for (i in 0 until checkLen) {
+                val b = bytes[i].toInt() and 0xFF
+                when {
+                    b == 0x00 -> return false
+                    b == 0x09 || b == 0x0A || b == 0x0D -> textChars++
+                    b in 0x20..0x7E -> textChars++
+                    b in 0xC0..0xFD -> textChars++
+                    b in 0x80..0xBF -> textChars++
+                }
+            }
+            return (textChars.toFloat() / checkLen) > 0.90f
+        }
+
+        internal suspend fun scavengeWords(bytes: ByteArray): List<String> {
+            val wordSet = LinkedHashSet<String>(4096)
+            val buffer = StringBuilder(MAX_WORD_LEN + 1)
+            var pos = 0
+
+            while (pos < bytes.size) {
+                // Kesin çözüm: Her 10.000 byte'da bir yield çağırarak UI thread'i dondurmayı engelliyoruz
+                if (pos % 10_000 == 0) {
+                    yield()
+                }
+
+                val decoded = decodeUtf8Char(bytes, pos)
+                if (decoded != null) {
+                    val (codePoint, byteLen) = decoded
+                    if (Character.isLetter(codePoint)) {
+                        if (buffer.length < MAX_WORD_LEN) buffer.appendCodePoint(codePoint)
+                        pos += byteLen
+                        continue
+                    }
+                }
+                flushBuffer(buffer, wordSet)
+                pos++
+            }
+            flushBuffer(buffer, wordSet)
+            return wordSet.toList()
+        }
+
+        internal fun flushBuffer(buffer: StringBuilder, target: MutableSet<String>) {
+            if (buffer.length in MIN_WORD_LEN..MAX_WORD_LEN) {
+                val candidate = buffer.toString()
+                if (candidate.all { Character.isLetter(it.code) }) target.add(candidate)
+            }
+            buffer.clear()
+        }
+
+        internal fun decodeUtf8Char(bytes: ByteArray, offset: Int): Pair<Int, Int>? {
+            if (offset >= bytes.size) return null
+            val b0 = bytes[offset].toInt() and 0xFF
+            if (b0 < 0x80) return Pair(b0, 1)
+
+            val (expectedLen, initialMask) = when {
+                b0 in 0xC2..0xDF -> Pair(2, 0x1F)
+                b0 in 0xE0..0xEF -> Pair(3, 0x0F)
+                b0 in 0xF0..0xF4 -> Pair(4, 0x07)
+                else -> return null
+            }
+
+            if (offset + expectedLen > bytes.size) return null
+            var codePoint = b0 and initialMask
+
+            for (i in 1 until expectedLen) {
+                val bi = bytes[offset + i].toInt() and 0xFF
+                if (bi and 0xC0 != 0x80) return null
+                codePoint = (codePoint shl 6) or (bi and 0x3F)
+            }
+
+            val minCodePoint = when (expectedLen) { 2 -> 0x80; 3 -> 0x800; 4 -> 0x10000; else -> return null }
+            if (codePoint < minCodePoint || codePoint > 0x10FFFF || codePoint in 0xD800..0xDFFF) return null
+
+            return Pair(codePoint, expectedLen)
+        }
+
+        internal fun readBytes(stream: java.io.InputStream): ByteArray {
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val n = stream.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > MAX_IMPORT_BYTES) throw IllegalStateException("Dosya çok büyük (5MB sınırı).")
+                out.write(buf, 0, n)
+            }
+            return out.toByteArray()
+        }
     }
 
     suspend fun convertAndSave(uri: Uri): Result<File> = withContext(Dispatchers.IO) {
@@ -44,100 +139,9 @@ class AospDictConverter(private val context: Context) {
         }
     }
 
-    private fun isPlainText(bytes: ByteArray): Boolean {
-        if (bytes.isEmpty()) return false
-        val checkLen = minOf(bytes.size, SAMPLE_SIZE)
-        var textChars = 0
-
-        for (i in 0 until checkLen) {
-            val b = bytes[i].toInt() and 0xFF
-            when {
-                b == 0x00 -> return false
-                b == 0x09 || b == 0x0A || b == 0x0D -> textChars++
-                b in 0x20..0x7E -> textChars++
-                b in 0xC0..0xFD -> textChars++
-                b in 0x80..0xBF -> textChars++
-            }
-        }
-        return (textChars.toFloat() / checkLen) > 0.90f
-    }
-
-    private suspend fun scavengeWords(bytes: ByteArray): List<String> {
-        val wordSet = LinkedHashSet<String>(4096)
-        val buffer = StringBuilder(MAX_WORD_LEN + 1)
-        var pos = 0
-
-        while (pos < bytes.size) {
-            // Kesin çözüm: Her 10.000 byte'da bir yield çağırarak UI thread'i dondurmayı engelliyoruz
-            if (pos % 10_000 == 0) {
-                yield()
-            }
-
-            val decoded = decodeUtf8Char(bytes, pos)
-            if (decoded != null) {
-                val (codePoint, byteLen) = decoded
-                if (Character.isLetter(codePoint)) {
-                    if (buffer.length < MAX_WORD_LEN) buffer.appendCodePoint(codePoint)
-                    pos += byteLen
-                    continue
-                }
-            }
-            flushBuffer(buffer, wordSet)
-            pos++
-        }
-        flushBuffer(buffer, wordSet)
-        return wordSet.toList()
-    }
-
-    private fun flushBuffer(buffer: StringBuilder, target: MutableSet<String>) {
-        if (buffer.length in MIN_WORD_LEN..MAX_WORD_LEN) {
-            val candidate = buffer.toString()
-            if (candidate.all { Character.isLetter(it.code) }) target.add(candidate)
-        }
-        buffer.clear()
-    }
-
-    private fun decodeUtf8Char(bytes: ByteArray, offset: Int): Pair<Int, Int>? {
-        if (offset >= bytes.size) return null
-        val b0 = bytes[offset].toInt() and 0xFF
-        if (b0 < 0x80) return Pair(b0, 1)
-
-        val (expectedLen, initialMask) = when {
-            b0 in 0xC2..0xDF -> Pair(2, 0x1F)
-            b0 in 0xE0..0xEF -> Pair(3, 0x0F)
-            b0 in 0xF0..0xF4 -> Pair(4, 0x07)
-            else -> return null
-        }
-
-        if (offset + expectedLen > bytes.size) return null
-        var codePoint = b0 and initialMask
-
-        for (i in 1 until expectedLen) {
-            val bi = bytes[offset + i].toInt() and 0xFF
-            if (bi and 0xC0 != 0x80) return null
-            codePoint = (codePoint shl 6) or (bi and 0x3F)
-        }
-
-        val minCodePoint = when (expectedLen) { 2 -> 0x80; 3 -> 0x800; 4 -> 0x10000; else -> return null }
-        if (codePoint < minCodePoint || codePoint > 0x10FFFF || codePoint in 0xD800..0xDFFF) return null
-
-        return Pair(codePoint, expectedLen)
-    }
-
     private fun readBytes(uri: Uri): ByteArray {
-        return context.contentResolver.openInputStream(uri)?.use { stream ->
-            val out = java.io.ByteArrayOutputStream()
-            val buf = ByteArray(8192)
-            var total = 0
-            while (true) {
-                val n = stream.read(buf)
-                if (n < 0) break
-                total += n
-                if (total > MAX_IMPORT_BYTES) throw IllegalStateException("Dosya çok büyük (5MB sınırı).")
-                out.write(buf, 0, n)
-            }
-            out.toByteArray()
-        } ?: throw IllegalStateException("Dosya açılamadı: $uri")
+        return context.contentResolver.openInputStream(uri)?.use { stream -> Companion.readBytes(stream) }
+            ?: throw IllegalStateException("Dosya açılamadı: $uri")
     }
 
     private fun prepareOutputFile(): File {

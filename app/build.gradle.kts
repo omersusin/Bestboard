@@ -60,6 +60,11 @@ dependencies {
     // ponytail: was transitive-only (build audit) — declare explicitly.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // JVM unit tests (no emulator): Trie, predictor, parsers, currency math.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
     // Emoji Picker
     implementation("androidx.emoji2:emoji2:1.5.0")
     implementation("androidx.emoji2:emoji2-emojipicker:1.5.0")
